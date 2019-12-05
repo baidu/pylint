@@ -965,7 +965,9 @@ class PyLinter(config.OptionsManagerMixIn,
         except tokenize.TokenError as ex:
             self.add_message('syntax-error', line=ex.args[1][0], args=ex.args[0])
             return None
-
+        except IndentationError as ex:
+            self.add_message('syntax-error', line=ex.lineno, args=ex.args[0])
+            return None
         if not ast_node.pure_python:
             self.add_message('raw-checker-failed', args=ast_node.name)
         else:
@@ -983,7 +985,10 @@ class PyLinter(config.OptionsManagerMixIn,
             for checker in tokencheckers:
                 checker.process_tokens(tokens)
         # generate events to astroid checkers
-        walker.walk(ast_node)
+        try:
+            walker.walk(ast_node)
+        except Exception as ex:
+            return
         return True
 
     # IAstroidChecker interface #################################################

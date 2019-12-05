@@ -628,6 +628,16 @@ def is_from_fallback_block(node):
     return ignores_import_error or has_fallback_imports
 
 
+def check_for(node):
+    """check for"""
+    while hasattr(node, "parent") and node.parent:
+        if isinstance(node.parent, astroid.node_classes.For):
+            return True
+        else:
+            node = node.parent
+    return False
+
+
 def _except_handlers_ignores_exception(handlers, exception):
     func = functools.partial(error_of_type, error_type=(exception, ))
     return any(map(func, handlers))

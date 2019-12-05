@@ -717,6 +717,8 @@ class BasicErrorChecker(_BasicChecker):
                 self, 'dummy-variables-rgx', default=None)
             if dummy_variables_rgx and dummy_variables_rgx.match(node.name):
                 return
+            if node.decorators:
+                return
             self.add_message('function-redefined', node=node,
                              args=(redeftype, defined_self.fromlineno))
 

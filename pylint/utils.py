@@ -931,8 +931,10 @@ def expand_modules(files_or_modules, black_list, black_list_re):
                     continue
                 if _basename_in_blacklist_re(basename(subfilepath), black_list_re):
                     continue
-
-                modpath = _modpath_from_file(subfilepath, is_namespace)
+                try:
+                    modpath = _modpath_from_file(subfilepath, is_namespace)
+                except:
+                    continue
                 submodname = '.'.join(modpath)
                 result.append({'path': subfilepath, 'name': submodname,
                                'isarg': False,

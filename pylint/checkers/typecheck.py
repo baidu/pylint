@@ -876,7 +876,7 @@ accessed. Python regular expressions are accepted.'}
             if isinstance(called, astroid.Instance) and not has_known_bases(called):
                 # Don't emit if we can't make sure this object is callable.
                 pass
-            else:
+            elif hasattr(called, 'decorators') and not called.decorators:
                 self.add_message('not-callable', node=node,
                                  args=node.func.as_string())
 
@@ -949,6 +949,8 @@ accessed. Python regular expressions are accepted.'}
                 # parameter.
                 break
             else:
+                if hasattr(called, 'decorators') and called.decorators:
+                    continue
                 # Too many positional arguments.
                 self.add_message('too-many-function-args',
                                  node=node, args=(callable_name,))
@@ -966,13 +968,15 @@ accessed. Python regular expressions are accepted.'}
                     # by keyword argument, as in `.format(self=self)`.
                     # It's perfectly valid to so, so we're just skipping
                     # it if that's the case.
-                    if not (keyword == 'self' and called.qname() in STR_FORMAT):
+                    if not (keyword == 'self' and called.qname() in STR_FORMAT) and hasattr(called, 'decorators') and not called.decorators:
                         self.add_message('redundant-keyword-arg',
                                          node=node, args=(keyword, callable_name))
                 else:
                     parameters[i][1] = True
             elif keyword in kwparams:
                 if kwparams[keyword][1]:  # XXX is that even possible?
+                    if hasattr(called, 'decorators') and  called.decorators:
+                        continue
                     # Duplicate definition of function parameter.
                     self.add_message('redundant-keyword-arg', node=node,
                                      args=(keyword, callable_name))
@@ -983,6 +987,8 @@ accessed. Python regular expressions are accepted.'}
                 pass
             else:
                 # Unexpected keyword argument.
+                if hasattr(called, 'decorators') and called.decorators:
+                    continue
                 self.add_message('unexpected-keyword-arg', node=node,
                                  args=(keyword, callable_name))
 
@@ -1135,7 +1141,7 @@ accessed. Python regular expressions are accepted.'}
         for ctx_mgr, _ in node.items:
             context = astroid.context.InferenceContext()
             infered = safe_infer(ctx_mgr, context=context)
-            if infered is None or infered is astroid.YES:
+            if infered is None or infered is astroid.YES or (hasattr(infered, '_proxied') and hasattr(infered._proxied, '_proxied') and hasattr(infered._proxied._proxied, 'decorators') and isinstance(infered._proxied, astroid.bases.UnboundMethod) and infered._proxied._proxied.decorators):
                 continue
 
             if isinstance(infered, bases.Generator):
@@ -1220,7 +1226,7 @@ accessed. Python regular expressions are accepted.'}
         if is_comprehension(node):
             return
         infered = safe_infer(node)
-        if infered is None or infered is astroid.YES:
+        if infered is None or infered is astroid.YES or (hasattr(infered, '_proxied') and hasattr(infered._proxied, '_proxied') and hasattr(infered._proxied._proxied, 'decorators') and isinstance(infered._proxied, astroid.bases.UnboundMethod) and infered._proxied._proxied.decorators):
             return
         if not supports_membership_test(infered):
             self.add_message('unsupported-membership-test',
@@ -1262,7 +1268,7 @@ accessed. Python regular expressions are accepted.'}
             return
 
         inferred = safe_infer(node.value)
-        if inferred is None or inferred is astroid.YES:
+        if inferred is None or inferred is astroid.YES or (hasattr(inferred, '_proxied') and hasattr(inferred._proxied, '_proxied') and hasattr(inferred._proxied._proxied, 'decorators') and isinstance(inferred._proxied, astroid.bases.UnboundMethod) and inferred._proxied._proxied.decorators):
             return
 
         if not supported_protocol(inferred):
@@ -1300,7 +1306,7 @@ class IterableChecker(BaseChecker):
         if is_comprehension(node):
             return
         infered = safe_infer(node)
-        if infered is None or infered is astroid.YES:
+        if infered is None or infered is astroid.YES or (hasattr(infered, '_proxied') and hasattr(infered._proxied, '_proxied') and hasattr(infered._proxied._proxied, 'decorators') and isinstance(infered._proxied, astroid.bases.UnboundMethod) and infered._proxied._proxied.decorators):
             return
         if not is_iterable(infered):
             self.add_message('not-an-iterable',
@@ -1313,7 +1319,7 @@ class IterableChecker(BaseChecker):
         if isinstance(node, astroid.DictComp):
             return
         infered = safe_infer(node)
-        if infered is None or infered is astroid.YES:
+        if infered is None or infered is astroid.YES or (hasattr(infered, '_proxied') and hasattr(infered._proxied, '_proxied') and hasattr(infered._proxied._proxied, 'decorators') and isinstance(infered._proxied, astroid.bases.UnboundMethod) and infered._proxied._proxied.decorators):
             return
         if not is_mapping(infered):
             self.add_message('not-a-mapping',

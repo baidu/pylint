@@ -56,6 +56,8 @@ FUTURE = '__future__'
 IGNORED_ARGUMENT_NAMES = re.compile('_.*|^ignored_|^unused_')
 PY3K = sys.version_info >= (3, 0)
 
+filter_vars = ['_', 'sc', 'sqlContext', 'emit', 'long', 'file', 'unichr',
+               'unicode', 'xrange', 'has_key', 'reload', 'basestring', 'reduce']
 
 def _is_from_future_import(stmt, name):
     """Check if the name is a future import from another module."""
@@ -457,6 +459,8 @@ class VariablesChecker(BaseChecker):
         self._to_consume = None  # list of tuples: (to_consume:dict, consumed:dict, scope_type:str)
         self._checking_mod_attr = None
         self._loop_variables = []
+        self.import_star = False
+        self.sofa_var = []
 
     # Relying on other checker's options, which might not have been initialized yet.
     @decorators.cachedproperty
@@ -583,6 +587,13 @@ class VariablesChecker(BaseChecker):
             for node in nodes:
                 self.add_message('unused-variable', args=(name,), node=node)
 
+    def _check_import_star(self, name):
+        """Check whether the file has an 'from xx import *' statment
+        """
+        if not self.import_star:
+            return True
+        return False
+
     def _check_imports(self, not_consumed):
         local_names = _fix_dot_imports(not_consumed)
         checked = set()
@@ -590,6 +601,7 @@ class VariablesChecker(BaseChecker):
             for imports in stmt.names:
                 real_name = imported_name = imports[0]
                 if imported_name == "*":
+                    self.import_star = True
                     real_name = name
                 as_name = imports[1]
                 if real_name in checked:
@@ -659,6 +671,13 @@ class VariablesChecker(BaseChecker):
         """
         # do not check for not used locals here
         self._to_consume.pop()
+
+    def visit_call(self, node):
+        """
+        visit call
+        """
+        if 'sofa.use' in node.as_string() and len(node.args) > 1:
+            self.sofa_var.append(node.args[1].as_string()[1:-1])
 
     def visit_generatorexp(self, node):
         """visit genexpr: update consumption analysis variable
@@ -1173,10 +1192,11 @@ class VariablesChecker(BaseChecker):
                             or defined_by_stmt
                             or annotation_return
                             or isinstance(defstmt, astroid.Delete)):
-                        if not utils.node_ignores_exception(node, NameError):
+                        if not utils.node_ignores_exception(node, NameError) and\
+                                name not in filter_vars and self._check_import_star(name) and base_scope_type != 'lambda':
                             self.add_message('undefined-variable', args=name,
                                              node=node)
-                    elif base_scope_type != 'lambda':
+                    elif base_scope_type != 'lambda' and not utils.check_for(node):
                         # E0601 may *not* occurs in lambda scope.
                         self.add_message('used-before-assignment', args=name, node=node)
                     elif base_scope_type == 'lambda':
@@ -1197,9 +1217,9 @@ class VariablesChecker(BaseChecker):
                             else:
                                 self.add_message('undefined-variable',
                                                  args=name, node=node)
-                        elif current_consumer.scope_type == 'lambda':
-                            self.add_message('undefined-variable',
-                                             node=node, args=name)
+                        #elif current_consumer.scope_type == 'lambda':
+                            #self.add_message('undefined-variable',
+                                             #node=node, args=name)
 
             current_consumer.mark_as_consumed(name, found_node)
             # check it's not a loop variable used outside the loop
@@ -1210,7 +1230,8 @@ class VariablesChecker(BaseChecker):
             # undefined name !
             if not (name in astroid.Module.scope_attrs or utils.is_builtin(name)
                     or name in self.config.additional_builtins):
-                if not utils.node_ignores_exception(node, NameError):
+                if not utils.node_ignores_exception(node, NameError) and name not in filter_vars and \
+                        self._check_import_star(name) and base_scope_type != 'lambda' and name not in self.sofa_var:
                     self.add_message('undefined-variable', args=name, node=node)
 
     def _has_homonym_in_upper_function_scope(self, node, index):
@@ -1259,12 +1280,15 @@ class VariablesChecker(BaseChecker):
         try:
             module = node.do_import_module(name_parts[0])
         except astroid.AstroidBuildingException:
+            if node.names and '*' in node.names[0]:
+                self.import_star = True
             return
         module = self._check_module_attrs(node, module, name_parts[1:])
         if not module:
             return
         for name, _ in node.names:
             if name == '*':
+                self.import_star = True
                 continue
             self._check_module_attrs(node, module, name.split('.'))
 
@@ -1299,7 +1323,7 @@ class VariablesChecker(BaseChecker):
                 node.value.name == infered.parent.vararg):
             # Variable-length argument, we can't determine the length.
             return
-        if isinstance(infered, (astroid.Tuple, astroid.List)):
+        if isinstance(infered, astroid.Tuple):
             # attempt to check unpacking is properly balanced
             values = infered.itered()
             if len(targets) != len(values):
